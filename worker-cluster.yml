@@ -1,24 +1,35 @@
 ---
-- hosts: Kubernetes_Master
-  become: yes
-  gather_facts: false
-  tasks:
-  - name: get join command
-    shell: kubeadm token create --print-join-command
-    register: join_command_raw
-
-  - name: Register dummy host with variable it access in next play
-    add_host:
-      name: "DUMMY_HOST"
-      JOIN_COMMAND: "{{ join_command_raw.stdout }}"
-
-
-- hosts: Kubernetes_Worker
+-
+  hosts: Kubernetes_Master
   become: yes
   tasks:
-  - name: join cluster
-    shell: "{{ hostvars['DUMMY_HOST'] ['JOIN_COMMAND'] }} >> node_joined.txt"
-    args:
+   -
+     name: Start the cluster
+     shell: kubeadm init --pod-network-cidr=10.244.0.0/16 >> cluster.txt
+     args:
        chdir: $HOME
-       creates: node_joined.txt
-© 2021 GitHub, Inc.
+       creates: cluster.txt
+
+   -
+     name: create .kube directory
+     become: yes
+     become_user: ubuntu
+     file:
+       path: $HOME/.kube
+       state: directory
+       mode: 0755
+   -
+     copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        owner: ubuntu
+        remote_src: true
+     name: "copy admin.comf to user's kube config"
+   -
+     name: install Pod network
+     become: yes
+     become_user: ubuntu
+     shell: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml >> pod_setup.txt"
+     args:
+       chdir: $HOME
+       creates: pod_setup.txt
